@@ -248,6 +248,7 @@ export default function AdminPage() {
 
   const resetGame = async () => {
 
+    alert("Я начал выполнять сброс");
 
     const confirmReset =
       window.confirm(
@@ -265,7 +266,16 @@ export default function AdminPage() {
 
     if (!game) return;
 
+const { error: deleteError } = await supabase
+  .from("answers")
+  .delete()
+  .neq("id", 0);
 
+if (deleteError) {
+  console.log(deleteError);
+  alert("Не удалось удалить ответы");
+  return;
+}
 
     const { error } =
       await supabase
