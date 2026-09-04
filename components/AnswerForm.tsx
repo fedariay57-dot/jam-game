@@ -179,7 +179,7 @@ export default function AnswerForm() {
         onChange={(e) =>
           setName(e.target.value)
         }
-        placeholder="Введите имя"
+        placeholder="Введите имя и фамилию"
         className="
           mt-3
           w-full
