@@ -75,7 +75,7 @@ export default function Hero() {
     shadow-[0_10px_40px_rgba(255,120,40,0.45)]
   "
 >
-  Попробовал
+  Вперед
 </Link>
 
 
