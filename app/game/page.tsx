@@ -167,9 +167,7 @@ export default function GamePage() {
               </div>
             ) : (
               <>
-                <p className="mt-5 text-white/70">
-                  Попробуй угадать секретный вкус.
-                </p>
+              
                 <AnswerForm />
               </>
             )}
