@@ -27,11 +27,13 @@ export default function AdminPage() {
   const [game, setGame] = useState<GameSettings | null>(null);
   const [correctTaste, setCorrectTaste] = useState("");
   const [loading, setLoading] = useState(true);
+  const [saving, setSaving] = useState(false);
 
   const login = () => {
     if (password === ADMIN_PASSWORD) {
       localStorage.setItem("jam_admin", "true");
       setIsAdmin(true);
+      setLoading(true);
     } else {
       alert("Неверный пароль");
     }
@@ -51,6 +53,9 @@ export default function AdminPage() {
 
     if (answersError) {
       console.log(answersError);
+      alert("Не удалось загрузить ответы");
+    } else if (answersData) {
+      setAnswers(answersData);
     }
 
     const { data: gameData, error: gameError } =
@@ -62,13 +67,8 @@ export default function AdminPage() {
 
     if (gameError) {
       console.log(gameError);
-    }
-
-    if (answersData) {
-      setAnswers(answersData);
-    }
-
-    if (gameData) {
+      alert("Не удалось загрузить настройки игры");
+    } else if (gameData) {
       setGame(gameData);
       setCorrectTaste(gameData.correct_taste || "");
     }
@@ -91,82 +91,95 @@ export default function AdminPage() {
     await loadData();
   };
 
-  const updateGame = async (status: string, taste?: string) => {
-    if (!game) return;
+  const startNewGame = async () => {
+    if (saving || !game) return;
 
-    const tasteToSave =
-      taste !== undefined ? taste.trim() : game.correct_taste;
+    const taste = correctTaste.trim();
 
-    if (status === "active" && !tasteToSave) {
-      alert("Сначала укажи правильный вкус джема");
+    if (!taste) {
+      alert("Сначала введи правильный состав джема");
       return;
     }
 
-    if (status === "finished" && !tasteToSave) {
-      alert("Укажи правильный вкус перед раскрытием");
-      return;
-    }
-
-    const { error } = await supabase
-      .from("game_settings")
-      .update({
-        status,
-        correct_taste: tasteToSave || null,
-      })
-      .eq("id", game.id);
-
-    if (error) {
-      console.log(error);
-      alert("Не удалось изменить настройки игры");
-      return;
-    }
-
-    await loadData();
-    alert("Настройки игры сохранены");
-  };
-
-  const resetGame = async () => {
-    const confirmReset = window.confirm(
-      "Начать новый раунд? Все ответы игроков будут удалены."
+    const confirmed = window.confirm(
+      "Начать новую игру? Все ответы предыдущего раунда будут удалены."
     );
 
-    if (!confirmReset) return;
-    if (!game) return;
+    if (!confirmed) return;
 
-    const { error: deleteError } = await supabase
-      .from("answers")
-      .delete()
-      .neq("id", 0);
+    setSaving(true);
 
-    if (deleteError) {
-      console.log(deleteError);
-      alert("Не удалось удалить ответы");
-      return;
+    try {
+      // Сначала закрываем игру, чтобы никто не отправлял
+      // ответы во время подготовки нового раунда.
+      const { error: closeError } = await supabase
+        .from("game_settings")
+        .update({
+          status: "closed",
+          correct_taste: taste,
+        })
+        .eq("id", game.id);
+
+      if (closeError) throw closeError;
+
+      // Удаляем ответы предыдущего раунда.
+      const { error: deleteError } = await supabase
+        .from("answers")
+        .delete()
+        .neq("id", 0);
+
+      if (deleteError) throw deleteError;
+
+      // Запускаем новый раунд с сохранённым составом.
+      const { error: startError } = await supabase
+        .from("game_settings")
+        .update({ status: "active" })
+        .eq("id", game.id);
+
+      if (startError) throw startError;
+
+      await loadData();
+      alert("Новая игра запущена!");
+    } catch (error) {
+      console.log(error);
+      await loadData();
+      alert(
+        "Не удалось полностью запустить новую игру. Проверь статус игры и попробуй ещё раз."
+      );
+    } finally {
+      setSaving(false);
     }
+  };
+
+  const finishGame = async () => {
+    if (saving || !game) return;
+
+    const confirmed = window.confirm(
+      "Завершить игру и закрыть приём ответов?"
+    );
+
+    if (!confirmed) return;
+
+    setSaving(true);
 
     const { error } = await supabase
       .from("game_settings")
-      .update({
-        status: "active",
-        correct_taste: null,
-      })
+      .update({ status: "closed" })
       .eq("id", game.id);
 
     if (error) {
       console.log(error);
-      alert("Не удалось сбросить игру");
-      return;
+      alert("Не удалось завершить игру");
+    } else {
+      await loadData();
+      alert("Игра завершена. Ответы сохранены.");
     }
 
-    setCorrectTaste("");
-    await loadData();
-    alert("Новый раунд создан");
+    setSaving(false);
   };
 
   useEffect(() => {
-    const admin = localStorage.getItem("jam_admin");
-
-    if (admin === "true") {
+    if (localStorage.getItem("jam_admin") === "true") {
       setIsAdmin(true);
     } else {
       setLoading(false);
@@ -175,7 +188,6 @@ export default function AdminPage() {
 
   useEffect(() => {
     if (isAdmin) {
-      setLoading(true);
       loadData();
     }
   }, [isAdmin]);
@@ -237,11 +249,14 @@ export default function AdminPage() {
           </h2>
 
           <p className="mt-2 text-white/60">
-            Статус: {game?.status}
+            Статус:{" "}
+            {game?.status === "active"
+              ? "Игра идёт"
+              : "Приём ответов закрыт"}
           </p>
 
           <label className="mt-5 block text-sm text-white/70">
-            Правильный состав джема
+            Загаданный состав джема
           </label>
 
           <input
@@ -252,36 +267,24 @@ export default function AdminPage() {
           />
 
           <p className="mt-2 text-sm text-white/50">
-            Перечисли все ингредиенты через запятую или точку с запятой.
+            Перечисли ингредиенты через запятую или точку с запятой.
           </p>
 
           <div className="mt-5 flex flex-wrap gap-3">
             <button
-              onClick={() => updateGame("active", correctTaste)}
-              className="rounded-full bg-green-500 px-5 py-3"
+              onClick={startNewGame}
+              disabled={saving}
+              className="rounded-full bg-green-500 px-5 py-3 disabled:opacity-50"
             >
-              🟢 Открыть игру
+              {saving ? "Подожди..." : "🎮 Новая игра"}
             </button>
 
             <button
-              onClick={() => updateGame("closed")}
-              className="rounded-full bg-red-500 px-5 py-3"
+              onClick={finishGame}
+              disabled={saving || game?.status !== "active"}
+              className="rounded-full bg-red-500 px-5 py-3 disabled:opacity-50"
             >
-              🔴 Закрыть ответы
-            </button>
-
-            <button
-              onClick={() => updateGame("finished", correctTaste)}
-              className="rounded-full bg-orange-500 px-5 py-3"
-            >
-              🏆 Показать вкус
-            </button>
-
-            <button
-              onClick={resetGame}
-              className="rounded-full bg-purple-500 px-5 py-3"
-            >
-              🔄 Новый раунд
+              🏁 Завершить игру
             </button>
           </div>
         </section>
@@ -318,21 +321,21 @@ export default function AdminPage() {
                     onClick={() => updateResult(answer.id, "winner")}
                     className="rounded-full bg-green-500 px-4 py-2"
                   >
-                    🏆 Победитель! Получи награду!
+                    🏆 Угадал
                   </button>
 
                   <button
                     onClick={() => updateResult(answer.id, "close")}
                     className="rounded-full bg-yellow-500 px-4 py-2"
                   >
-                    🔥 Был близко. Получи конфетку!
+                    🔥 Был близко
                   </button>
 
                   <button
                     onClick={() => updateResult(answer.id, "wrong")}
                     className="rounded-full bg-red-500 px-4 py-2"
                   >
-                    ❌ Не угадал( Повезет в другой раз.
+                    ❌ Не угадал
                   </button>
                 </div>
               </div>
