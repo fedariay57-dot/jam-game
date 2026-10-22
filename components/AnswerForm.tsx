@@ -145,7 +145,7 @@ export default function AnswerForm() {
       <input
         value={taste}
         onChange={(e) => setTaste(e.target.value)}
-        placeholder="Ингредиенты через запятую"
+        placeholder="Введи ингредиенты"
         className="mt-3 w-full border-b border-white/30 bg-transparent pb-3 text-lg text-white outline-none placeholder:text-white/30"
       />
 
