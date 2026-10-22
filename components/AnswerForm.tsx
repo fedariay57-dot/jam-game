@@ -22,14 +22,14 @@ function getResultMessage(result: AnswerResult) {
     case "winner":
       return {
         emoji: "🏆",
-        title: "Ты угадал!",
+        title: "Браво!",
         text: "Все ингредиенты на месте. Получи награду!",
       };
     case "close":
       return {
         emoji: "🔥",
-        title: "Ты был близко!",
-        text: "Ты угадал часть ингредиентов. Получи награду!",
+        title: "Ты был(а) близко!",
+        text: "Ты угадал(а) часть ингредиентов. Получи награду!",
       };
     case "wrong":
       return {
