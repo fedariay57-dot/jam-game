@@ -20,14 +20,14 @@ function getResultMessage(result: string) {
     case "winner":
       return {
         emoji: "🏆",
-        title: "Ты угадал!",
+        title: "Браво!",
         text: "Все ингредиенты на месте!",
       };
     case "close":
       return {
         emoji: "🔥",
-        title: "Ты был близко!",
-        text: "Ты угадал часть ингредиентов!",
+        title: "Ты был(а) близко!",
+        text: "Ты угадал(а) часть ингредиентов!",
       };
     case "wrong":
       return {
